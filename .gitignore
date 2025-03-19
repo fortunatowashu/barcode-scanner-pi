@@ -1,0 +1,17 @@
+# Ignore virtual environment directory
+venv/
+
+# Ignore environment variables file
+.env
+
+# Ignore log files
+*.log
+
+# Ignore any OS-specific files
+.DS_Store
+Thumbs.db
+
+scanned_barcodes_*.xlsx
+
+logs/
+__pycache__/
