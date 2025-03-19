@@ -26,7 +26,7 @@ from boxsdk import JWTAuth, Client
 BASE_DIR = "/home/washudcm/barcode_project"
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 
-BOX_CONFIG_PATH = os.getenv("BOX_CONFIG_PATH")  # e.g., /home/washudcm/barcode_project/config.json
+BOX_CONFIG_PATH = os.getenv("BOX_CONFIG_PATH")  # e.g., /home/pi/barcode_project/config.json
 TARGET_FOLDER_ID = os.getenv("TARGET_FOLDER_ID")  # Personal target folder ID (from Box web)
 COLLABORATOR_EMAIL = os.getenv("COLLABORATOR_EMAIL")  # Your personal email to share the file with
 
