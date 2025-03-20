@@ -474,26 +474,39 @@ barcode_project/
 └── venv/                      # Python virtual environment directory (ignored)
 ```
 
-### Summary
-Project Overview:\
-      The Barcode Scanner Project captures barcode input from a scanner on a headless Raspberry Pi using a patched version of the keyboard library. It logs scanned data to an Excel file and integrates with Box to upload rotated files while automatically adding your personal Box account as a collaborator.
+## Summary
 
-Setup & Installation:\
-      Create a Python virtual environment, install dependencies, patch the keyboard library, and configure environment variables using a .env file. For Box integration, obtain the config.json file from the Box Developer Console and place it in your project directory (or use a template like config.example.json).
+### Project Overview
+The Barcode Scanner Project captures barcode input from a scanner on a headless Raspberry Pi using a patched version of the keyboard library. It logs scanned data to an Excel file and integrates with Box to upload rotated files while automatically adding your personal Box account as a collaborator.
 
-Running the Project:\
-      The project can be tested interactively and is set to start automatically via a cron @reboot job that runs a bash wrapper script (run_barcode.sh). This wrapper script ensures that the Python script is restarted if it crashes.
+### Setup & Installation
+- **Create a Python Virtual Environment:**  
+  Set up a virtual environment in your project directory.
+- **Install Dependencies:**  
+  Install required libraries including `keyboard`, `openpyxl`, `python-dotenv`, and `boxsdk`.
+- **Patch the Keyboard Library:**  
+  Modify the library to bypass root/dumpkeys issues.
+- **Configure Environment Variables:**  
+  Create a `.env` file to set necessary variables. For Box integration, obtain the `config.json` file from the Box Developer Console and place it in your project directory (or use a template like `config.example.json`).
 
-Cloning the Repository:\
-      To replicate the project on another Raspberry Pi, clone the repository using:
+### Running the Project
+- **Interactive Testing:**  
+  Run the Python script manually to test barcode scanning.
+- **Automatic Startup via Cron:**  
+  A cron `@reboot` job launches a bash wrapper script (`run_barcode.sh`), which ensures the Python script is continuously restarted if it crashes.
+
+### Cloning the Repository
+To replicate the project on another Raspberry Pi, clone the repository using:
 
 ```bash
 git clone https://github.com/yourusername/barcode-scanner-pi.git
 cd barcode-scanner-pi
+
 ```
 Then follow the Installation & Setup instructions.
 
-Logging & Troubleshooting:\
-      Log files (barcode_scanner.log and run_barcode_cron.log) capture all output and errors. Use standard Linux commands to monitor processes and troubleshoot issues.
-
+### Logging & Troubleshooting:
+   - **Log files (barcode_scanner.log and run_barcode_cron.log) capture all output and errors. Use standard Linux commands to monitor processes and troubleshoot issues.
+   - **Monitoring:**
+     Use standard Linux commands (e.g., ps aux | grep barcode_scanner.py) to monitor processes.
 
