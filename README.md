@@ -115,18 +115,18 @@ COLLABORATOR_EMAIL="your_personal_email@domain.com"
 Save and exit.
 
 ### Box Integration Setup
-1.Create a Box JWT Application:
-   -Log in to the Box Developer Console.
-   -Create a new JWT application.
-   -Configure the application with the required scopes and permissions.
-2.Download the config.json File:
-   -After configuring your app, download the config.json file. Keep this file private as it contains sensitive authentication details.
-3.Place the JSON File in Your Project Directory:
-   -Copy the downloaded config.json file into your project directory (e.g., /home/washudcm/barcode_project).
-   -If you prefer not to push the actual file to GitHub, rename it to config.example.json and add the real config.json to your .gitignore.
-4.Update the .env File:
-   -Ensure that the BOX_CONFIG_PATH variable in your .env file points to the location of your config.json file.
-The Box integration is handled in the box_helpers.py file, which uses the JWT credentials to authenticate, upload the Excel file, and add your personal Box account as a collaborator.
+   -1. **Create a Box JWT Application**:/
+      -Log in to the Box Developer Console./
+      -Create a new JWT application./
+      -Configure the application with the required scopes and permissions.
+   -2. **Download the config.json File**:/
+      -After configuring your app, download the config.json file. Keep this file private as it contains sensitive authentication details.
+   -3. **Place the JSON File in Your Project Directory**:
+      -Copy the downloaded config.json file into your project directory (e.g., /home/washudcm/barcode_project)./
+      -If you prefer not to push the actual file to GitHub, rename it to config.example.json and add the real config.json to your .gitignore.
+   -4.**Update the .env File**:
+      -Ensure that the BOX_CONFIG_PATH variable in your .env file points to the location of your config.json file./
+   -The Box integration is handled in the box_helpers.py file, which uses the JWT credentials to authenticate, upload the Excel file, and add your personal Box account as a collaborator.
 
 ### Cloning the Repository
 Once your project is uploaded to GitHub, you can clone it on any Raspberry Pi using the CLI:
