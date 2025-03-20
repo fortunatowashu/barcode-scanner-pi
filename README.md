@@ -432,12 +432,12 @@ tail -f /home/washudcm/barcode_project/run_barcode_cron.log
 tail -f /home/washudcm/barcode_project/barcode_scanner.log
 ```
 ### Logging & Troubleshooting
-   -Log Files:
+-Log Files:
 
-      -barcode_scanner.log: Contains all output (both stdout and errors) from the Python script.
-      -run_barcode_cron.log: Contains output from the cron job that launches the wrapper script.
-   -Process Monitoring:
-    To check running processes, run:
+   -barcode_scanner.log: Contains all output (both stdout and errors) from the Python script.
+   -run_barcode_cron.log: Contains output from the cron job that launches the wrapper script.
+-Process Monitoring:
+   -To check running processes, run:
 
    ```bash
 ps aux | grep barcode_scanner.py
@@ -466,25 +466,25 @@ barcode_project/
 ```
 
 ### Summary
--Project Overview:
-   -The Barcode Scanner Project captures barcode input from a scanner on a headless Raspberry Pi using a patched version of the keyboard library. It logs scanned data to an Excel file and integrates with Box to upload rotated files while automatically adding your personal Box account as a collaborator.
+   -Project Overview:
+      -The Barcode Scanner Project captures barcode input from a scanner on a headless Raspberry Pi using a patched version of the keyboard library. It logs scanned data to an Excel file and integrates with Box to upload rotated files while automatically adding your personal Box account as a collaborator.
 
--Setup & Installation:
-   -Create a Python virtual environment, install dependencies, patch the keyboard library, and configure environment variables using a .env file. For Box integration, obtain the config.json file from the Box Developer Console and place it in your project directory (or use a template like config.example.json).
+   -Setup & Installation:
+      -Create a Python virtual environment, install dependencies, patch the keyboard library, and configure environment variables using a .env file. For Box integration, obtain the config.json file from the Box Developer Console and place it in your project directory (or use a template like config.example.json).
 
--Running the Project:
-   -The project can be tested interactively and is set to start automatically via a cron @reboot job that runs a bash wrapper script (run_barcode.sh). This wrapper script ensures that the Python script is restarted if it crashes.
+   -Running the Project:
+      -The project can be tested interactively and is set to start automatically via a cron @reboot job that runs a bash wrapper script (run_barcode.sh). This wrapper script ensures that the Python script is restarted if it crashes.
 
--Cloning the Repository:
-   -To replicate the project on another Raspberry Pi, clone the repository using:
+   -Cloning the Repository:
+      -To replicate the project on another Raspberry Pi, clone the repository using:
 
 ```bash
 git clone https://github.com/yourusername/barcode-scanner-pi.git
 cd barcode-scanner-pi
 ```
-Then follow the Installation & Setup instructions.
+   Then follow the Installation & Setup instructions.
 
--Logging & Troubleshooting:
-   -Log files (barcode_scanner.log and run_barcode_cron.log) capture all output and errors. Use standard Linux commands to monitor processes and troubleshoot issues.
+   -Logging & Troubleshooting:
+      -Log files (barcode_scanner.log and run_barcode_cron.log) capture all output and errors. Use standard Linux commands to monitor processes and troubleshoot issues.
 
-End of README
+
