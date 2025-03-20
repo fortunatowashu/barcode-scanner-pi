@@ -69,7 +69,6 @@ source venv/bin/activate
 Within your virtual environment, install the required packages:
 
 ```bash
-Copy
 pip install keyboard openpyxl python-dotenv boxsdk
 ```
 ### 4. Patch the Keyboard Library
@@ -82,7 +81,6 @@ sudo nano venv/lib/python3.11/site-packages/keyboard/_nixcommon.py
 ```
 Locate the ensure_root() function and change it to:
 ```python
-Copy
 def ensure_root():
     # Bypass root check; assume necessary permissions are provided via capabilities/udev.
     pass
@@ -92,7 +90,6 @@ Save (Ctrl+O, Enter) and exit (Ctrl+X).
 Run the main script to ensure it functions properly:
 
 ```bash
-Copy
 venv/bin/python barcode_scanner.py
 ```
 Verify that the initialization messages appear and that barcode input is captured and logged to an Excel file.
@@ -102,13 +99,11 @@ Create a .env File
 In your project directory, create a file named .env:
 
 ```bash
-Copy
 nano .env
 ```
 Insert the following content (adjust values as needed):
 
 ```ini
-Copy
 # Box Integration Settings
 BOX_CONFIG_PATH="/home/washudcm/barcode_project/config.json"
 TARGET_FOLDER_ID="YOUR_BOX_FOLDER_ID"
@@ -137,7 +132,6 @@ The Box integration is handled in the box_helpers.py file, which uses the JWT cr
 Once your project is uploaded to GitHub, you can clone it on any Raspberry Pi using the CLI:
 
 ```bash
-Copy
 git clone https://github.com/yourusername/barcode-scanner-pi.git
 cd barcode-scanner-pi
 ```
@@ -146,7 +140,6 @@ Then follow the Installation & Setup instructions to create a virtual environmen
 ### Full Code Listing
 ### A. barcode_scanner.py
 ```python
-Copy
 #!/usr/bin/env python3
 """
 Barcode Scanner Project with Box Upload (JWT Authentication and Collaboration):
@@ -322,7 +315,6 @@ if __name__ == "__main__":
 ```
 ### B. box_helpers.py
 ```python
-Copy
 #!/usr/bin/env python3
 """
 Box Helpers Module
@@ -378,7 +370,6 @@ def add_folder_collaborator(folder_id, collaborator_email):
 ```
 ### C. run_barcode.sh
 ```bash
-Copy
 #!/bin/bash
 # run_barcode.sh - Wrapper script to continuously run barcode_scanner.py
 
@@ -393,7 +384,6 @@ done
 Make the script executable:
 
 ```bash
-Copy
 chmod +x run_barcode.sh
 ```
 ### Running the Project
@@ -401,19 +391,16 @@ chmod +x run_barcode.sh
 1. Open a Terminal and Navigate to the Project Directory:
 
 ```bash
-Copy
 cd /home/washudcm/barcode_project
 ```
 2. Activate the Virtual Environment:
 
 ```bash
-Copy
 source venv/bin/activate
 ```
 3. Run the Main Script:
 
 ```bash
-Copy
 python barcode_scanner.py
 ```
 4. Test the Scanner:
@@ -423,13 +410,11 @@ Scan a barcode and verify that key events are printed in the terminal and that t
 1. Edit Your Crontab:
 
 ```bash
-Copy
 crontab -e
 ```
 2. Add the Following Line to Launch the Wrapper Script at Boot:
 
 ```cron
-Copy
 @reboot /home/washudcm/barcode_project/run_barcode.sh >> /home/washudcm/barcode_project/run_barcode_cron.log 2>&1
 ```
 3. Save and Exit the Crontab.
@@ -437,14 +422,12 @@ Copy
 4. Reboot the Raspberry Pi:
 
 ```bash
-Copy
 sudo reboot
 ```
 5. Verify the Logs:
 After reboot, check the log files:
 
 ```bash
-Copy
 tail -f /home/washudcm/barcode_project/run_barcode_cron.log
 tail -f /home/washudcm/barcode_project/barcode_scanner.log
 ```
@@ -457,7 +440,6 @@ tail -f /home/washudcm/barcode_project/barcode_scanner.log
     To check running processes, run:
 
    ```bash
-Copy
 ps aux | grep barcode_scanner.py
 ```
    -Common Issues:
@@ -470,7 +452,6 @@ ps aux | grep barcode_scanner.py
       The patched keyboard library should handle dumpkeys errors gracefully.
 ### Project Structure
 ```pgsql
-Copy
 barcode_project/
 ├── barcode_scanner.py         # Main Python script with Box integration
 ├── box_helpers.py             # Contains Box API functions (JWT authentication and adding collaborators)
@@ -486,25 +467,24 @@ barcode_project/
 
 ### Summary
 -Project Overview:
-The Barcode Scanner Project captures barcode input from a scanner on a headless Raspberry Pi using a patched version of the keyboard library. It logs scanned data to an Excel file and integrates with Box to upload rotated files while automatically adding your personal Box account as a collaborator.
+-The Barcode Scanner Project captures barcode input from a scanner on a headless Raspberry Pi using a patched version of the keyboard library. It logs scanned data to an Excel file and integrates with Box to upload rotated files while automatically adding your personal Box account as a collaborator.
 
 -Setup & Installation:
-Create a Python virtual environment, install dependencies, patch the keyboard library, and configure environment variables using a .env file. For Box integration, obtain the config.json file from the Box Developer Console and place it in your project directory (or use a template like config.example.json).
+-Create a Python virtual environment, install dependencies, patch the keyboard library, and configure environment variables using a .env file. For Box integration, obtain the config.json file from the Box Developer Console and place it in your project directory (or use a template like config.example.json).
 
 -Running the Project:
-The project can be tested interactively and is set to start automatically via a cron @reboot job that runs a bash wrapper script (run_barcode.sh). This wrapper script ensures that the Python script is restarted if it crashes.
+-The project can be tested interactively and is set to start automatically via a cron @reboot job that runs a bash wrapper script (run_barcode.sh). This wrapper script ensures that the Python script is restarted if it crashes.
 
 -Cloning the Repository:
-To replicate the project on another Raspberry Pi, clone the repository using:
+-To replicate the project on another Raspberry Pi, clone the repository using:
 
 ```bash
-Copy
 git clone https://github.com/yourusername/barcode-scanner-pi.git
 cd barcode-scanner-pi
 ```
 Then follow the Installation & Setup instructions.
 
 -Logging & Troubleshooting:
-Log files (barcode_scanner.log and run_barcode_cron.log) capture all output and errors. Use standard Linux commands to monitor processes and troubleshoot issues.
+-Log files (barcode_scanner.log and run_barcode_cron.log) capture all output and errors. Use standard Linux commands to monitor processes and troubleshoot issues.
 
 End of README
