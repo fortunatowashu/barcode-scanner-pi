@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Environment and secrets
+.env
+config/*_config.json
+
+# Data files
+data/*.xlsx
+data/*_CORRUPTED_*.xlsx
+
+# Logs
+logs/*.log
+
+# VS Code
+.vscode/settings.json
+.vscode/launch.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
