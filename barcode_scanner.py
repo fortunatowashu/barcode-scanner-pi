@@ -172,7 +172,7 @@ class BarcodeScanner:
         """Set up daily rotation schedule"""
         schedule.every().day.at("14:56").do(self._rotate_excel)
         self.logger.info("Scheduled daily file rotation at midnight")
-    
+      
     def _validate_barcode(self, barcode: str) -> bool:
         """Validate barcode format (customize as needed)"""
         if not barcode or len(barcode.strip()) == 0:

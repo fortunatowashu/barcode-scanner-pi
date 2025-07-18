@@ -1,447 +1,330 @@
-Enhanced Barcode Scanner Project for Raspberry Pi
-Overview
-This project enables a headless Raspberry Pi to capture barcode input from a connected barcode scanner and log the scanned data—with timestamps—into an Excel file. The system features robust error handling, automatic recovery, and seamless Box integration with JWT authentication for secure cloud storage.
+# Raspberry Pi Barcode Scanner with Box Integration
 
-Key Improvements in This Version:
+A robust barcode scanning system designed for Raspberry Pi that automatically logs scans to Excel files and uploads them to Box cloud storage.
 
-Enhanced error handling and retry logic
-Systemd service for reliable process management
-Comprehensive logging and monitoring
-Barcode input validation and timeout handling
-Thread-safe operations and non-blocking uploads
-Production-ready configuration management
+## Features
 
+- **Real-time barcode scanning** via USB barcode scanner
+- **Excel logging** with timestamps and status tracking
+- **Automatic Box upload** of files containing scan data
+- **Daily file rotation** at midnight
+- **Auto-restart** on system reboot or crashes
+- **Multi-device support** with unique device identification
+- **Comprehensive error handling** and logging
+- **Empty file management** (no upload of files without scans)
 
-Table of Contents
+## Prerequisites
 
-Features
-Requirements
-Installation & Setup
-Configuration
-Box Integration Setup
-Running the Project
-Production Deployment
-Monitoring & Maintenance
-Troubleshooting
-Project Structure
+- Raspberry Pi (tested on Pi 3B+ and Pi 4)
+- Raspbian OS (Bullseye or later)
+- USB Barcode Scanner (HID keyboard mode)
+- Python 3.7+
+- Box Developer Account with JWT application
+- Internet connection
 
-Features
+## Quick Start
 
-Robust Barcode Input Capture: Advanced barcode processing with timeout handling and validation
-Excel Logging with Status Tracking: Comprehensive logging including SUCCESS, TIMEOUT, INVALID, and RECOVERED statuses
-Reliable Box Integration: JWT authentication with retry logic and automatic collaborator management
-Production-Ready Error Handling: Graceful failure recovery and detailed logging
-Systemd Service Management: Automatic startup, restart, and process monitoring
-Thread-Safe Operations: Non-blocking uploads and concurrent file operations
-Configuration Validation: Early detection of configuration issues with clear error messages
+### One-Line Installation (Public Repo)
 
-Requirements
-Hardware & OS
+```bash
+wget -O - https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/scripts/setup_pi.sh | bash
+```
 
-Raspberry Pi running Raspberry Pi OS (64-bit recommended)
-USB Barcode Scanner (keyboard wedge mode)
-Minimum 8GB SD card
-Internet connection for Box uploads
+### Manual Installation
 
-Software
+1. **Clone the repository:**
+```bash
+cd /home/pi
+git clone https://github.com/YOUR_USERNAME/barcode-scanner.git
+cd barcode-scanner
+```
 
-Python 3.9 or later
-systemd (standard on Raspberry Pi OS)
-Required Python libraries (see requirements.txt)
+2. **Run the installation script:**
+```bash
+chmod +x scripts/install.sh
+sudo ./scripts/install.sh
+```
 
-Installation & Setup
-1. Prepare the Raspberry Pi
-Update your system:
-bashsudo apt update && sudo apt upgrade -y
-sudo apt install python3-pip python3-venv git -y
-2. Clone the Repository
-bashgit clone https://github.com/yourusername/barcode-scanner-pi.git
-cd barcode-scanner-pi
-3. Create Project Structure
-bash# Create necessary directories
-mkdir -p logs data config
+3. **Configure your credentials:**
+```bash
+# Copy and edit environment file
+cp .env.example .env
+nano .env
 
-# Set proper permissions
-chmod 755 logs data config
-4. Set Up Python Virtual Environment
-bashpython3 -m venv venv
-source venv/bin/activate
-pip install --upgrade pip
-5. Install Dependencies
-bashpip install -r requirements.txt
-6. Configure User Permissions
-Add your user to the input group for keyboard access:
-bashsudo usermod -a -G input $USER
-Create udev rule for barcode scanner access:
-bashsudo tee /etc/udev/rules.d/99-barcode-scanner.rules << EOF
-SUBSYSTEM=="input", GROUP="input", MODE="0664"
-KERNEL=="event*", GROUP="input", MODE="0664"
-EOF
+# Copy and edit Box configuration
+cp box_config.example.json box_config.json
+nano box_config.json
+```
 
-sudo udevadm control --reload-rules
-sudo udevadm trigger
-Important: Log out and log back in for group changes to take effect.
-Configuration
-1. Create Environment Configuration
-Copy the example environment file:
-bashcp .env.example .env
-Edit the .env file:
-bashnano .env
-Configure with your settings:
-bash# Required Box Configuration
-BOX_CONFIG_PATH=./config/box_config.json
+4. **Start the service:**
+```bash
+sudo systemctl start barcode-scanner
+sudo systemctl enable barcode-scanner
+```
+
+## Configuration
+
+### Environment Variables (.env)
+
+```bash
+# Device identification
+DEVICE_ID=pi_warehouse_01
+DEVICE_LOCATION=Main Warehouse
+
+# Paths
+BASE_DIR=/home/pi/barcode-scanner/data
+BOX_CONFIG_PATH=/home/pi/barcode-scanner/box_config.json
+
+# Box settings
 TARGET_FOLDER_ID=your_box_folder_id_here
-COLLABORATOR_EMAIL=your_email@example.com
+COLLABORATOR_EMAIL=manager@company.com
 
-# Application Settings
-BASE_DIR=./data
-LOG_LEVEL=INFO
+# Scanner settings
+BARCODE_TIMEOUT=5          # Seconds to wait for complete barcode
+MAX_RETRIES=3             # Box upload retry attempts
+RETRY_DELAY=5             # Seconds between retries
+LOG_LEVEL=INFO            # DEBUG, INFO, WARNING, ERROR
+```
 
-# Optional Settings (with defaults)
-BARCODE_TIMEOUT=5
-MAX_RETRIES=3
-RETRY_DELAY=5
-2. Test Configuration
-Run the configuration test:
-bashpython test_box_connection.py
-This will validate your Box configuration and provide detailed feedback on any issues.
-Box Integration Setup
-Step 1: Create Box JWT Application
+### Box Configuration
 
-Access Box Developer Console:
+1. Create a JWT application in [Box Developer Console](https://app.box.com/developers/console)
+2. Generate a public/private keypair
+3. Download the configuration file
+4. Place it as `box_config.json` in the project directory
 
-Go to Box Developer Console
-Sign in with your Box account
+## Project Structure
 
+```
+/home/pi/barcode-scanner/
+├── barcode_scanner.py          # Main application
+├── .env                        # Environment configuration
+├── box_config.json            # Box JWT credentials
+├── requirements.txt           # Python dependencies
+├── data/                      # Excel files directory
+│   └── scanned_barcodes_*.xlsx
+├── logs/                      # Application logs
+│   └── barcode_scanner.log
+└── scripts/                   # Utility scripts
+    ├── install.sh            # Installation script
+    ├── barcode-scanner.service # Systemd service
+    └── auto_update.sh        # Auto-update script
+```
 
-Create New Application:
+## Usage
 
-Click "Create New App"
-Choose "Custom App"
-Select "Server Authentication (JWT)"
-Name your app (e.g., "Raspberry Pi Barcode Scanner")
+### Starting/Stopping the Service
 
+```bash
+# Start the scanner
+sudo systemctl start barcode-scanner
 
-
-Step 2: Configure Application Settings
-
-Set Application Scopes:
-
-✅ Read all files and folders stored in Box
-✅ Write all files and folders stored in Box
-✅ Manage users
-
-
-Configure Advanced Features:
-
-✅ Generate user access tokens
-
-
-Generate Public/Private Keypair:
-
-In "Add and Manage Public Keys" section
-Click "Generate a Public/Private Keypair"
-Download the configuration JSON file
-
-
-
-Step 3: Deploy Configuration
-
-Place Config File:
-bash# Copy the downloaded config file to your project
-cp ~/Downloads/[downloaded-config-file].json ./config/box_config.json
-
-# Secure the config file
-chmod 600 ./config/box_config.json
-
-Test Box Connection:
-bashpython detailed_box_test.py
-
-
-Step 4: Authorize Application
-
-Submit for Authorization:
-
-In Box Developer Console, click "Review and Submit"
-Wait for approval (usually instant for personal apps)
-
-
-Share Target Folder:
-
-Create or identify your target folder in Box
-Share it with your app's Service Account Email (found in app settings)
-Grant "Co-owner" permissions
-
-
-
-Running the Project
-Development Testing
-
-Activate Virtual Environment:
-bashsource venv/bin/activate
-
-Run Interactive Test:
-bashpython src/barcode_scanner.py
-
-Test Barcode Scanning:
-
-Scan a barcode with your scanner
-Verify logging in terminal and Excel file creation
-Check logs/barcode_scanner.log for detailed output
-
-
-
-Stopping the Test
-Press Ctrl+C to stop the scanner gracefully.
-Production Deployment
-For reliable 24/7 operation, use systemd service management instead of cron jobs.
-1. Create Systemd Service
-Create the service file:
-bashsudo tee /etc/systemd/system/barcode-scanner.service << EOF
-[Unit]
-Description=Barcode Scanner Service
-After=network.target
-Wants=network.target
-
-[Service]
-Type=simple
-User=$USER
-Group=$USER
-WorkingDirectory=/home/$USER/barcode-scanner-pi
-Environment=PATH=/home/$USER/barcode-scanner-pi/venv/bin
-ExecStart=/home/$USER/barcode-scanner-pi/venv/bin/python src/barcode_scanner.py
-Restart=always
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
-
-# Security settings
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ReadWritePaths=/home/$USER/barcode-scanner-pi/data /home/$USER/barcode-scanner-pi/logs
-
-[Install]
-WantedBy=multi-user.target
-EOF
-2. Enable and Start Service
-bash# Reload systemd configuration
-sudo systemctl daemon-reload
-
-# Enable service to start at boot
-sudo systemctl enable barcode-scanner.service
-
-# Start the service
-sudo systemctl start barcode-scanner.service
-
-# Check service status
-sudo systemctl status barcode-scanner.service
-3. Service Management Commands
-bash# Check service status
-sudo systemctl status barcode-scanner
-
-# View real-time logs
-sudo journalctl -u barcode-scanner -f
-
-# Stop the service
+# Stop the scanner
 sudo systemctl stop barcode-scanner
 
-# Restart the service
+# Restart the scanner
 sudo systemctl restart barcode-scanner
 
-# Disable automatic startup
-sudo systemctl disable barcode-scanner
-Monitoring & Maintenance
-Log Monitoring
-Application Logs:
-bash# View recent application logs
-tail -f logs/barcode_scanner.log
+# Check status
+sudo systemctl status barcode-scanner
+```
 
-# Search for errors
-grep ERROR logs/barcode_scanner.log
+### Viewing Logs
 
-# View logs with timestamps
-tail -f logs/barcode_scanner.log | while read line; do echo "$(date): $line"; done
-System Logs:
-bash# View systemd service logs
+```bash
+# Service logs
 sudo journalctl -u barcode-scanner -f
 
-# View recent service logs
-sudo journalctl -u barcode-scanner --since "1 hour ago"
+# Application logs
+tail -f /home/pi/barcode-scanner/logs/barcode_scanner.log
 
-# View logs from last boot
-sudo journalctl -u barcode-scanner -b
-Health Monitoring Script
-Create a monitoring script:
-bashtee monitor_barcode.sh << 'EOF'
-#!/bin/bash
-# Monitor barcode scanner service health
+# Today's logs only
+sudo journalctl -u barcode-scanner --since today
+```
 
-SERVICE_NAME="barcode-scanner"
-LOG_FILE="/home/$USER/barcode-scanner-pi/logs/barcode_scanner.log"
+### Scanning Barcodes
 
-# Check if service is running
-if ! systemctl is-active --quiet $SERVICE_NAME; then
-    echo "❌ Service $SERVICE_NAME is not running"
-    exit 1
-fi
+1. Ensure the service is running
+2. Scan barcodes with your USB scanner
+3. Each scan is automatically logged to the daily Excel file
+4. Files are uploaded to Box after midnight (if they contain scans)
 
-# Check recent activity (no errors in last 10 minutes)
-if tail -100 "$LOG_FILE" | grep -q "$(date '+%Y-%m-%d %H:%M' -d '10 minutes ago')"; then
-    echo "✅ Service is healthy and active"
-else
-    echo "⚠️  No recent activity detected"
-fi
+## File Management
 
-# Show service status
-systemctl status $SERVICE_NAME --no-pager -l
-EOF
+### Excel Files
 
-chmod +x monitor_barcode.sh
-Automated Health Checks
-Add to crontab for periodic health checks:
-bashcrontab -e
-Add this line:
-bash# Check barcode scanner health every 30 minutes
-*/30 * * * * /home/$USER/barcode-scanner-pi/monitor_barcode.sh >> /home/$USER/barcode-scanner-pi/logs/health_check.log 2>&1
-Log Rotation
-Set up log rotation to prevent disk space issues:
-bashsudo tee /etc/logrotate.d/barcode-scanner << EOF
-/home/$USER/barcode-scanner-pi/logs/*.log {
-    daily
-    rotate 30
-    compress
-    delaycompress
-    missingok
-    notifempty
-    create 644 $USER $USER
-}
-EOF
-Troubleshooting
-Common Issues and Solutions
-1. Service Won't Start
-bash# Check service status for error details
-sudo systemctl status barcode-scanner.service
+- Created daily with format: `scanned_barcodes_[DEVICE_ID]_YYYY-MM-DD.xlsx`
+- Contains columns: Device ID, Location, Barcode, Timestamp, Status
+- Automatically rotated at midnight
+- Only uploaded if containing actual scan data
 
-# Check logs for specific errors
-sudo journalctl -u barcode-scanner --since "10 minutes ago"
+### Box Upload
 
-# Common fixes:
-# - Verify file permissions
-# - Check .env configuration
-# - Validate Box config file
-2. Box Upload Failures
-bash# Test Box connection
-python detailed_box_test.py
+- Files upload automatically after daily rotation
+- Failed uploads retry based on MAX_RETRIES setting
+- Empty files are deleted, not uploaded
+- Collaborators automatically added to Box folder
 
-# Common causes:
-# - Invalid Box configuration
-# - Network connectivity issues
-# - Folder permission problems
-3. Barcode Scanner Not Detected
-bash# Check USB devices
-lsusb
+## Monitoring
 
-# Check input devices
-ls -la /dev/input/
+### Check Service Health
 
-# Test scanner manually
-cat /dev/input/event0  # (replace event0 with your device)
+```bash
+# Quick health check
+systemctl is-active barcode-scanner
 
-# Check user permissions
-groups $USER | grep input
-4. Permission Errors
-bash# Fix file permissions
-chmod -R 755 /home/$USER/barcode-scanner-pi
-chmod 600 /home/$USER/barcode-scanner-pi/.env
-chmod 600 /home/$USER/barcode-scanner-pi/config/box_config.json
-
-# Ensure user is in input group
-sudo usermod -a -G input $USER
-# Then logout and login again
-Diagnostic Commands
-bash# Check service status
+# Detailed status
 sudo systemctl status barcode-scanner
 
-# View configuration
-python -c "
-from src.barcode_scanner import Config
-try:
-    config = Config()
-    print('✅ Configuration loaded successfully')
-except Exception as e:
-    print(f'❌ Configuration error: {e}')
-"
+# Last 50 log entries
+sudo journalctl -u barcode-scanner -n 50
+```
 
-# Test Box connection
-python detailed_box_test.py
+### Monitor Multiple Devices
 
-# Monitor resource usage
-top -p $(pgrep -f barcode_scanner.py)
-Project Structure
-barcode-scanner-pi/
-├── src/
-│   └── barcode_scanner.py         # Main application (enhanced version)
-├── config/
-│   └── box_config.json           # Box JWT configuration (not in repo)
-├── data/                         # Excel files storage
-│   └── scanned_barcodes_*.xlsx   # Daily barcode logs
-├── logs/                         # Application logs
-│   ├── barcode_scanner.log       # Main application log
-│   └── health_check.log          # Health monitoring log
-├── tests/
-│   ├── test_box_connection.py    # Basic Box connection test
-│   └── detailed_box_test.py      # Comprehensive Box test
-├── .env                          # Environment configuration
-├── .env.example                  # Environment template
-├── .gitignore                    # Git ignore file
-├── requirements.txt              # Python dependencies
-├── monitor_barcode.sh            # Health monitoring script
-└── README.md                     # This documentation
-Key Improvements Over Original
-Reliability Enhancements
+```bash
+# If managing multiple Pis
+./scripts/monitor_all_pis.sh
+```
 
-Systemd Service Management: More reliable than cron jobs
-Retry Logic: Automatic recovery from temporary failures
-Thread-Safe Operations: Prevents data corruption
-Configuration Validation: Early error detection
+## Troubleshooting
 
-Operational Improvements
+### Service Won't Start
 
-Structured Logging: Better debugging and monitoring
-Health Monitoring: Automated system health checks
-Log Rotation: Prevents disk space issues
-Security Hardening: Proper file permissions and service isolation
+1. Check permissions:
+```bash
+sudo chown -R pi:pi /home/pi/barcode-scanner
+sudo chmod -R 755 /home/pi/barcode-scanner
+```
 
-Development Experience
+2. Test manually:
+```bash
+cd /home/pi/barcode-scanner
+source venv/bin/activate
+python barcode_scanner.py
+```
 
-Comprehensive Testing: Multiple test scripts for validation
-Clear Error Messages: Better troubleshooting information
-Modular Design: Easier maintenance and updates
+3. Check system logs:
+```bash
+sudo journalctl -xe
+```
 
-Security Considerations
+### Barcode Scanner Not Working
 
-All sensitive files have proper permissions (600)
-Service runs with minimal privileges
-Box JWT tokens are securely stored
-Log files don't contain sensitive information
-Regular security updates recommended
+1. Verify scanner is in HID keyboard mode
+2. Test scanner in a text editor
+3. Check USB connection:
+```bash
+lsusb  # Should show your barcode scanner
+```
 
-Maintenance Schedule
-Daily: Monitor service status and logs
-Weekly: Check disk space and log rotation
-Monthly: Update system packages and dependencies
-Quarterly: Review and rotate Box JWT credentials
-License
+### Box Upload Failures
+
+1. Verify internet connectivity:
+```bash
+ping box.com
+```
+
+2. Check Box credentials:
+```bash
+# Validate JSON syntax
+python -m json.tool box_config.json
+```
+
+3. Verify folder permissions in Box web interface
+
+### Common Issues
+
+| Issue | Solution |
+|-------|----------|
+| "Permission denied" on keyboard | Service must run as root for keyboard access |
+| Excel file corrupted | Automatically handled - creates new file |
+| Network timeout | Increase RETRY_DELAY in .env |
+| Box authentication fails | Regenerate JWT credentials in Box Console |
+
+## Updating
+
+### Manual Update
+
+```bash
+cd /home/pi/barcode-scanner
+git pull
+source venv/bin/activate
+pip install -r requirements.txt
+sudo systemctl restart barcode-scanner
+```
+
+### Automatic Updates
+
+Enable the auto-update cron job:
+```bash
+# Edit crontab
+crontab -e
+
+# Add this line for hourly updates
+0 * * * * /home/pi/barcode-scanner/scripts/auto_update.sh
+```
+
+## Security Considerations
+
+1. **Protect credentials:**
+```bash
+chmod 600 .env box_config.json
+```
+
+2. **Regular updates:**
+```bash
+sudo apt-get update && sudo apt-get upgrade
+```
+
+3. **Network security:**
+- Use firewall rules if exposed to internet
+- Consider VPN for remote access
+- Use separate Box service accounts per device
+
+## Multi-Device Deployment
+
+For deploying to multiple Raspberry Pis:
+
+1. Create unique Box JWT configs for each device
+2. Use the deployment script:
+```bash
+./scripts/deploy_multi_pi.sh
+```
+
+3. Monitor all devices:
+```bash
+./scripts/monitor_all_pis.sh
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
 This project is licensed under the MIT License - see the LICENSE file for details.
-Support
+
+## Support
+
 For issues and questions:
+1. Check the [troubleshooting section](#troubleshooting)
+2. Review logs in `/home/pi/barcode-scanner/logs/`
+3. Open an issue on GitHub
+4. Contact your system administrator
 
-Check the troubleshooting section
-Review application logs
-Test Box connection with provided scripts
-Create an issue in the GitHub repository
+## Acknowledgments
 
+- Built with Python and [openpyxl](https://openpyxl.readthedocs.io/)
+- Box integration via [Box Python SDK](https://github.com/box/box-python-sdk)
+- Keyboard monitoring with [keyboard](https://github.com/boppreh/keyboard)
 
-Last Updated: January 2025
-Version: 2.0 (Enhanced Production Release)
+---
+
+**Version:** 1.0.0  
+**Last Updated:** January 2024  
+**Maintainer:** Fortunato Hernandez 

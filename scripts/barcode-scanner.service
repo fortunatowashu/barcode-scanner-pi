@@ -1,0 +1,28 @@
+[Unit]
+Description=Barcode Scanner Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/home/pi/barcode-scanner
+Environment="PATH=/home/pi/barcode-scanner/venv/bin"
+ExecStart=/home/pi/barcode-scanner/venv/bin/python /home/pi/barcode-scanner/barcode_scanner.py
+
+# Restart configuration
+Restart=always
+RestartSec=10
+StartLimitInterval=60
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+
+# Security options (optional)
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
