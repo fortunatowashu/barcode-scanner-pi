@@ -1,6 +1,7 @@
 [Unit]
 Description=Barcode Scanner Service
 After=network.target
+Wants=network.target
 
 [Service]
 Type=simple
@@ -20,7 +21,7 @@ StartLimitBurst=5
 StandardOutput=journal
 StandardError=journal
 
-# Security options (optional)
+# Security options
 NoNewPrivileges=true
 PrivateTmp=true
 
