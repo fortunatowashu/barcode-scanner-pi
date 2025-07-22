@@ -150,12 +150,67 @@ if [ ! -f "box_config.json" ]; then
     warn "Created box_config.json from example. Please edit it with your actual Box JWT credentials!"
 fi
 
+# Set executable permissions for scripts (use repo versions if available)
+log "Setting script permissions..."
+if [ -f "scripts/test_scanner.py" ]; then
+    chmod +x scripts/test_scanner.py
+    log "Test script found in repo and permissions set"
+else
+    warn "Test script not found in repo, creating basic fallback version..."
+    cat > scripts/test_scanner.py << 'EOF'
+#!/usr/bin/env python3
+"""
+Basic test script - please check repo for full test script
+"""
+import sys
+import os
+sys.path.append('/home/pi/barcode-scanner')
+
+try:
+    print("Testing basic imports...")
+    import openpyxl
+    print("✓ openpyxl imported successfully")
+    
+    import keyboard
+    print("✓ keyboard imported successfully")
+    
+    from boxsdk import JWTAuth, Client
+    print("✓ Box SDK imported successfully")
+    
+    print("\n✓ Basic test completed - please get full test script from repo")
+    
+except Exception as e:
+    print(f"❌ Basic test failed: {e}")
+    sys.exit(1)
+EOF
+    chmod +x scripts/test_scanner.py
+fi
+
+if [ -f "scripts/monitor.sh" ]; then
+    chmod +x scripts/monitor.sh
+    log "Monitor script found in repo and permissions set"
+else
+    warn "Monitor script not found in repo, creating basic fallback version..."
+    cat > scripts/monitor.sh << 'EOF'
+#!/bin/bash
+# Basic monitor script - please check repo for full monitor script
+
+echo "=== Basic Barcode Scanner Status ==="
+echo "Service Status:"
+systemctl is-active barcode-scanner || echo "Service is not running"
+
+echo -e "\nService Status Details:"
+sudo systemctl status barcode-scanner --no-pager
+EOF
+    chmod +x scripts/monitor.sh
+fi
+
 # Set proper permissions
 log "Setting file permissions..."
 chmod 755 "$PROJECT_DIR"
 chmod 755 "$PROJECT_DIR/data"
 chmod 755 "$PROJECT_DIR/logs"
-chmod 644 "$PROJECT_DIR"/*.py
+chmod 644 "$PROJECT_DIR"/*.py 2>/dev/null || true
 chmod 600 "$PROJECT_DIR/.env"
 chmod 600 "$PROJECT_DIR/box_config.json"
 
@@ -170,71 +225,6 @@ else
     error "Service file not found at scripts/barcode-scanner.service"
     exit 1
 fi
-
-# Create startup test script
-log "Creating test script..."
-cat > scripts/test_scanner.py << 'EOF'
-#!/usr/bin/env python3
-"""
-Test script to verify barcode scanner installation
-"""
-import sys
-import os
-sys.path.append('/home/pi/barcode-scanner')
-
-try:
-    from barcode_scanner import Config
-    print("✓ Configuration module loaded successfully")
-    
-    config = Config()
-    print("✓ Configuration validated successfully")
-    print(f"✓ Base directory: {config.base_dir}")
-    print(f"✓ Box config path: {config.box_config_path}")
-    
-    # Test imports
-    import openpyxl
-    print("✓ openpyxl imported successfully")
-    
-    import keyboard
-    print("✓ keyboard imported successfully")
-    
-    from boxsdk import JWTAuth, Client
-    print("✓ Box SDK imported successfully")
-    
-    print("\n🎉 Installation test completed successfully!")
-    print("Next steps:")
-    print("1. Edit .env file with your configuration")
-    print("2. Edit box_config.json with your Box JWT credentials") 
-    print("3. Start the service: sudo systemctl start barcode-scanner")
-    
-except Exception as e:
-    print(f"❌ Installation test failed: {e}")
-    sys.exit(1)
-EOF
-
-chmod +x scripts/test_scanner.py
-
-# Create monitoring script
-log "Creating monitoring script..."
-cat > scripts/monitor.sh << 'EOF'
-#!/bin/bash
-# Quick monitoring script for barcode scanner
-
-echo "=== Barcode Scanner Status ==="
-echo "Service Status:"
-systemctl is-active barcode-scanner || echo "Service is not running"
-
-echo -e "\nLast 10 log entries:"
-sudo journalctl -u barcode-scanner -n 10 --no-pager
-
-echo -e "\nDisk usage for data directory:"
-du -sh /home/pi/barcode-scanner/data
-
-echo -e "\nRecent files in data directory:"
-ls -la /home/pi/barcode-scanner/data | tail -5
-EOF
-
-chmod +x scripts/monitor.sh
 
 log "Installation completed successfully!"
 echo
@@ -254,3 +244,4 @@ info "   sudo systemctl status barcode-scanner"
 info "   ./scripts/monitor.sh"
 echo
 warn "IMPORTANT: Make sure to configure your .env and box_config.json files before starting!"
+warn "Don't forget to rename your downloaded Box JWT file: mv *_config.json box_config.json"
