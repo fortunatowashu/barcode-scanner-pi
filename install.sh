@@ -1,6 +1,6 @@
 #!/bin/bash
 # Barcode Scanner Installation Script for Raspberry Pi
-# This script installs all dependencies and sets up the barcode scanner service
+# This script installs all dependencies and sets up the barcode scanner service for CLI mode
 
 set -e  # Exit on any error
 
@@ -37,14 +37,14 @@ fi
 # Project directory
 PROJECT_DIR="/home/pi/barcode-scanner"
 
-log "Starting Barcode Scanner installation..."
+log "Starting Barcode Scanner installation for CLI mode..."
 
 # Update system packages
 log "Updating system packages..."
 sudo apt-get update
 
-# Install system dependencies
-log "Installing system dependencies..."
+# Install system dependencies (including CLI input support)
+log "Installing system dependencies and CLI input support..."
 sudo apt-get install -y \
     python3 \
     python3-pip \
@@ -55,7 +55,15 @@ sudo apt-get install -y \
     build-essential \
     python3-dev \
     libffi-dev \
-    libssl-dev
+    libssl-dev \
+    libinput-tools \
+    input-utils \
+    console-data \
+    xserver-xorg-input-evdev
+
+# Install keyboard library system-wide for CLI mode
+log "Installing keyboard library system-wide for CLI compatibility..."
+sudo pip install keyboard --break-system-packages
 
 # Create project directory if it doesn't exist
 log "Setting up project directory..."
@@ -90,64 +98,107 @@ pip install --upgrade pip
 log "Installing Python dependencies..."
 if [ -f "requirements.txt" ]; then
     pip install -r requirements.txt
+    # Also install keyboard in venv for consistency
+    pip install keyboard
 else
     error "requirements.txt not found! Make sure all project files are in $PROJECT_DIR"
     exit 1
 fi
 
-# Create example configuration files if they don't exist
+# Setup CLI input support
+log "Configuring CLI input support..."
+
+# Add required kernel modules for CLI mode
+echo 'uinput' | sudo tee -a /etc/modules >/dev/null
+echo 'evdev' | sudo tee -a /etc/modules >/dev/null
+
+# Create udev rule for barcode scanners
+sudo tee /etc/udev/rules.d/99-barcode-scanner.rules << 'EOF'
+# Barcode scanner input device rules for CLI mode
+SUBSYSTEM=="input", ATTRS{idVendor}=="2f50", ATTRS{idProduct}=="0301", MODE="0666", GROUP="input", TAG+="uaccess"
+KERNEL=="event*", SUBSYSTEM=="input", MODE="0666", GROUP="input"
+# Generic HID keyboard devices (for various barcode scanners)
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{bInterfaceClass}=="03", ATTRS{bInterfaceSubClass}=="01", ATTRS{bInterfaceProtocol}=="01", MODE="0666", GROUP="input"
+EOF
+
+# Reload udev rules
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+
+# Create configuration files with prompts
 log "Setting up configuration files..."
 
-# Create .env.example if it doesn't exist
-if [ ! -f ".env.example" ]; then
-    cat > .env.example << 'EOF'
-# Device identification
-DEVICE_ID=pi_scanner_01
-DEVICE_LOCATION=Main Location
+# Create .env file with user input
+if [ ! -f ".env" ]; then
+    log "Creating .env configuration file..."
+    
+    # Get device identification
+    echo
+    info "Device Configuration:"
+    read -p "Enter Device ID (e.g., pi_warehouse_01): " DEVICE_ID
+    read -p "Enter Device Location (e.g., Main Warehouse): " DEVICE_LOCATION
+    
+    # Get Box settings
+    echo
+    info "Box Configuration:"
+    read -p "Enter Target Folder ID from Box: " TARGET_FOLDER_ID
+    read -p "Enter Collaborator Email: " COLLABORATOR_EMAIL
+    
+    # Create .env file
+    cat > .env << EOF
+# Device identification (make unique for each Pi)
+DEVICE_ID=${DEVICE_ID:-pi_scanner_01}
+DEVICE_LOCATION=${DEVICE_LOCATION:-Default Location}
 
-# Paths
+# Paths (usually don't need to change)
 BASE_DIR=/home/pi/barcode-scanner/data
 BOX_CONFIG_PATH=/home/pi/barcode-scanner/box_config.json
 
 # Box settings (get these from Box Developer Console)
-TARGET_FOLDER_ID=your_box_folder_id_here
-COLLABORATOR_EMAIL=manager@company.com
+TARGET_FOLDER_ID=${TARGET_FOLDER_ID:-your_box_folder_id_here}
+COLLABORATOR_EMAIL=${COLLABORATOR_EMAIL:-manager@company.com}
 
 # Scanner settings
-BARCODE_TIMEOUT=5
-MAX_RETRIES=3
-RETRY_DELAY=5
-LOG_LEVEL=INFO
+BARCODE_TIMEOUT=5          # Seconds to wait for complete barcode
+MAX_RETRIES=3             # Box upload retry attempts
+RETRY_DELAY=5             # Seconds between retries
+LOG_LEVEL=INFO            # DEBUG, INFO, WARNING, ERROR
 EOF
+    
+    log "Created .env file with your configuration"
+else
+    warn ".env file already exists, skipping creation"
 fi
 
-# Create box_config.example.json if it doesn't exist
-if [ ! -f "box_config.example.json" ]; then
-    cat > box_config.example.json << 'EOF'
+# Create box_config.json template
+if [ ! -f "box_config.json" ]; then
+    log "Creating Box configuration template..."
+    
+    echo
+    warn "You need to download your JWT configuration from Box Developer Console"
+    warn "Visit: https://app.box.com/developers/console"
+    echo
+    info "Creating template box_config.json file..."
+    
+    cat > box_config.json << 'EOF'
 {
   "boxAppSettings": {
-    "clientID": "your_client_id_here",
-    "clientSecret": "your_client_secret_here",
+    "clientID": "YOUR_CLIENT_ID_HERE",
+    "clientSecret": "YOUR_CLIENT_SECRET_HERE",
     "appAuth": {
-      "publicKeyID": "your_public_key_id_here",
-      "privateKey": "-----BEGIN ENCRYPTED PRIVATE KEY-----\nyour_private_key_here\n-----END ENCRYPTED PRIVATE KEY-----",
-      "passphrase": "your_passphrase_here"
+      "publicKeyID": "YOUR_PUBLIC_KEY_ID_HERE",
+      "privateKey": "-----BEGIN ENCRYPTED PRIVATE KEY-----\nYOUR_PRIVATE_KEY_HERE\n-----END ENCRYPTED PRIVATE KEY-----",
+      "passphrase": "YOUR_PASSPHRASE_HERE"
     }
   },
-  "enterpriseID": "your_enterprise_id_here"
+  "enterpriseID": "YOUR_ENTERPRISE_ID_HERE"
 }
 EOF
-fi
-
-# Copy example files to actual config files if they don't exist
-if [ ! -f ".env" ]; then
-    cp .env.example .env
-    warn "Created .env file from example. Please edit it with your actual configuration!"
-fi
-
-if [ ! -f "box_config.json" ]; then
-    cp box_config.example.json box_config.json
-    warn "Created box_config.json from example. Please edit it with your actual Box JWT credentials!"
+    
+    warn "IMPORTANT: Replace box_config.json with your actual JWT configuration from Box!"
+    warn "Or rename your downloaded config file: mv your_downloaded_*_config.json box_config.json"
+else
+    log "box_config.json already exists"
 fi
 
 # Set executable permissions for scripts (use repo versions if available)
@@ -160,14 +211,16 @@ else
     cat > scripts/test_scanner.py << 'EOF'
 #!/usr/bin/env python3
 """
-Basic test script - please check repo for full test script
+Test script to verify barcode scanner installation
 """
 import sys
 import os
 sys.path.append('/home/pi/barcode-scanner')
 
 try:
-    print("Testing basic imports...")
+    print("Testing barcode scanner installation...")
+    
+    # Test basic imports
     import openpyxl
     print("✓ openpyxl imported successfully")
     
@@ -177,10 +230,25 @@ try:
     from boxsdk import JWTAuth, Client
     print("✓ Box SDK imported successfully")
     
-    print("\n✓ Basic test completed - please get full test script from repo")
+    # Test configuration loading
+    from dotenv import load_dotenv
+    load_dotenv()
+    
+    import os
+    device_id = os.getenv("DEVICE_ID", "not_set")
+    target_folder = os.getenv("TARGET_FOLDER_ID", "not_set")
+    
+    print(f"✓ Device ID: {device_id}")
+    print(f"✓ Target Folder ID: {target_folder}")
+    
+    print("\n🎉 Installation test completed successfully!")
+    print("Next steps:")
+    print("1. Configure box_config.json with your Box JWT credentials")
+    print("2. Update .env file if needed")
+    print("3. Start the service: sudo systemctl start barcode-scanner")
     
 except Exception as e:
-    print(f"❌ Basic test failed: {e}")
+    print(f"❌ Installation test failed: {e}")
     sys.exit(1)
 EOF
     chmod +x scripts/test_scanner.py
@@ -193,14 +261,26 @@ else
     warn "Monitor script not found in repo, creating basic fallback version..."
     cat > scripts/monitor.sh << 'EOF'
 #!/bin/bash
-# Basic monitor script - please check repo for full monitor script
+# Monitoring script for barcode scanner
 
-echo "=== Basic Barcode Scanner Status ==="
+echo "=== Barcode Scanner Status ==="
 echo "Service Status:"
 systemctl is-active barcode-scanner || echo "Service is not running"
 
-echo -e "\nService Status Details:"
-sudo systemctl status barcode-scanner --no-pager
+echo -e "\nService Details:"
+sudo systemctl status barcode-scanner --no-pager --lines=5
+
+echo -e "\nLast 5 log entries:"
+sudo journalctl -u barcode-scanner -n 5 --no-pager
+
+echo -e "\nDisk usage for data directory:"
+du -sh /home/pi/barcode-scanner/data 2>/dev/null || echo "Data directory not found"
+
+echo -e "\nRecent files in data directory:"
+ls -la /home/pi/barcode-scanner/data 2>/dev/null | tail -3 || echo "No files found"
+
+echo -e "\nInput devices:"
+ls -la /dev/input/ | grep event
 EOF
     chmod +x scripts/monitor.sh
 fi
@@ -226,22 +306,39 @@ else
     exit 1
 fi
 
+# Set CLI mode as default
+log "Configuring system for CLI mode..."
+sudo systemctl set-default multi-user.target
+
 log "Installation completed successfully!"
 echo
+info "🎉 Barcode Scanner Installation Complete!"
+echo
 info "Next steps:"
-info "1. Edit configuration files:"
-info "   nano $PROJECT_DIR/.env"
-info "   nano $PROJECT_DIR/box_config.json"
+info "1. Configure Box JWT credentials:"
+info "   - Download JWT config from: https://app.box.com/developers/console"
+info "   - Replace box_config.json with your downloaded file"
+info "   - Or rename: mv your_downloaded_*_config.json box_config.json"
 echo
-info "2. Test the installation:"
-info "   cd $PROJECT_DIR && python3 scripts/test_scanner.py"
+info "2. Verify configuration:"
+info "   python3 scripts/test_scanner.py"
 echo
-info "3. Start the service:"
+info "3. Reboot to CLI mode:"
+info "   sudo reboot"
+echo
+info "4. After reboot, start the service:"
 info "   sudo systemctl start barcode-scanner"
 echo
-info "4. Monitor the service:"
+info "5. Monitor the service:"
 info "   sudo systemctl status barcode-scanner"
 info "   ./scripts/monitor.sh"
 echo
-warn "IMPORTANT: Make sure to configure your .env and box_config.json files before starting!"
-warn "Don't forget to rename your downloaded Box JWT file: mv *_config.json box_config.json"
+warn "⚠️  IMPORTANT:"
+warn "- System will reboot to CLI mode (no desktop)"
+warn "- Configure box_config.json before starting the service"
+warn "- Use SSH for remote management: ssh pi@$(hostname -I | cut -d' ' -f1)"
+echo
+info "📋 Quick Reference:"
+info "- View logs: sudo journalctl -u barcode-scanner -f"
+info "- Restart service: sudo systemctl restart barcode-scanner"
+info "- Return to desktop: sudo systemctl set-default graphical.target && sudo reboot"

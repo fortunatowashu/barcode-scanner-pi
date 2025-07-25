@@ -4,7 +4,7 @@ Enhanced Barcode Scanner Project with Box Upload:
 - Improved error handling and resilience
 - Better configuration validation
 - Barcode input timeout and validation
-- Retry logic for Box operations
+- Robust upload system with worker thread and queue
 - Structured logging
 - Only uploads files with actual scan data
 """
@@ -14,6 +14,7 @@ import time
 import schedule
 import threading
 import logging
+import queue
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 import json
@@ -120,10 +121,15 @@ class BarcodeScanner:
         self._running = False
         self.scan_count = 0  # Track number of scans for current file
         
+        # Add upload queue and worker thread
+        self.upload_queue = queue.Queue()
+        self.upload_worker_running = False
+        
         # Initialize components
         self._initialize_box_client()
         self._initialize_excel()
         self._setup_scheduler()
+        self._start_upload_worker()
     
     def _initialize_box_client(self):
         """Initialize Box client with retry logic"""
@@ -170,8 +176,121 @@ class BarcodeScanner:
     
     def _setup_scheduler(self):
         """Set up daily rotation schedule"""
-        schedule.every().day.at("00:00").do(self._rotate_excel)
-        self.logger.info("Scheduled daily file rotation at midnight")
+        schedule.every().day.at("15:18").do(self._rotate_excel)
+        self.logger.info("Scheduled daily file rotation at 00:01")
+    
+    def _start_upload_worker(self):
+        """Start persistent upload worker thread"""
+        self.upload_worker_running = True
+        worker_thread = threading.Thread(target=self._upload_worker, daemon=False)
+        worker_thread.start()
+        self.logger.info("Upload worker thread started")
+    
+    def _upload_worker(self):
+        """Persistent worker thread that processes upload queue"""
+        self.logger.info("Upload worker started and waiting for files...")
+        
+        while self.upload_worker_running:
+            try:
+                # Wait for file to upload (with timeout to check if we should stop)
+                try:
+                    file_path = self.upload_queue.get(timeout=5.0)
+                except queue.Empty:
+                    continue
+                
+                if file_path is None:  # Shutdown signal
+                    break
+                
+                self.logger.info(f"Upload worker processing: {file_path}")
+                
+                # Attempt upload with retries
+                success = self._upload_with_retries(file_path)
+                
+                if success:
+                    self.logger.info(f"Successfully uploaded: {file_path}")
+                else:
+                    self.logger.error(f"Failed to upload after all retries: {file_path}")
+                
+                # Mark task as done
+                self.upload_queue.task_done()
+                
+            except Exception as e:
+                self.logger.error(f"Upload worker error: {e}")
+                time.sleep(1)  # Brief pause before continuing
+        
+        self.logger.info("Upload worker stopped")
+    
+    def _upload_with_retries(self, file_path: Path, max_retries: int = None) -> bool:
+        """Upload file with retry logic and proper logging"""
+        if max_retries is None:
+            max_retries = self.config.max_retries
+        
+        for attempt in range(max_retries):
+            try:
+                self.logger.info(f"Upload attempt {attempt + 1}/{max_retries} for {file_path.name}")
+                
+                # Check if file still exists and has data
+                if not file_path.exists():
+                    self.logger.warning(f"File no longer exists: {file_path}")
+                    return False
+                
+                if not self._has_scan_data(file_path):
+                    self.logger.info(f"File {file_path} has no scan data, deleting instead of uploading")
+                    try:
+                        file_path.unlink()
+                        self.logger.info(f"Deleted empty file: {file_path}")
+                    except Exception as e:
+                        self.logger.warning(f"Could not delete empty file: {e}")
+                    return True  # Consider this "successful" since we handled it
+                
+                # Attempt the upload
+                success = self._upload_to_box(file_path)
+                
+                if success:
+                    self.logger.info(f"Upload successful on attempt {attempt + 1}: {file_path.name}")
+                    return True
+                else:
+                    self.logger.warning(f"Upload failed on attempt {attempt + 1}: {file_path.name}")
+                    
+            except Exception as e:
+                self.logger.error(f"Upload attempt {attempt + 1} exception: {e}")
+            
+            # Wait before retry (except on last attempt)
+            if attempt < max_retries - 1:
+                wait_time = self.config.retry_delay * (attempt + 1)  # Exponential backoff
+                self.logger.info(f"Waiting {wait_time} seconds before retry...")
+                time.sleep(wait_time)
+        
+        self.logger.error(f"All upload attempts failed for: {file_path.name}")
+        return False
+    
+    def _queue_file_for_upload(self, file_path: Path):
+        """Add file to upload queue for processing by worker thread"""
+        try:
+            self.upload_queue.put(file_path, timeout=1.0)
+            self.logger.info(f"Queued file for upload: {file_path.name}")
+        except queue.Full:
+            self.logger.error(f"Upload queue is full, cannot queue: {file_path.name}")
+    
+    def _wait_for_uploads_complete(self, timeout: int = 30):
+        """Wait for all queued uploads to complete"""
+        self.logger.info("Waiting for queued uploads to complete...")
+        
+        try:
+            # Wait for queue to be empty
+            start_time = time.time()
+            while not self.upload_queue.empty():
+                if time.time() - start_time > timeout:
+                    self.logger.warning(f"Upload queue timeout after {timeout} seconds")
+                    break
+                time.sleep(1)
+            
+            # Wait for any in-progress uploads
+            self.upload_queue.join()
+            self.logger.info("All queued uploads completed")
+            
+        except Exception as e:
+            self.logger.error(f"Error waiting for uploads: {e}")
       
     def _validate_barcode(self, barcode: str) -> bool:
         """Validate barcode format (customize as needed)"""
@@ -240,52 +359,51 @@ class BarcodeScanner:
             self.logger.error(f"Failed to create new Excel file: {e}")
     
     def _upload_to_box(self, file_path: Path) -> bool:
-        """Upload file to Box with retry logic"""
+        """Upload file to Box with improved error handling and logging"""
         if not file_path.exists():
             self.logger.warning(f"File not found for upload: {file_path}")
-            return False
-        
-        # Check if file has scan data before uploading
-        if not self._has_scan_data(file_path):
-            self.logger.info(f"File {file_path} has no scan data, skipping upload")
-            # Optionally delete the empty file
-            try:
-                os.remove(file_path)
-                self.logger.info(f"Deleted empty file: {file_path}")
-            except Exception as e:
-                self.logger.warning(f"Could not delete empty file: {e}")
             return False
         
         if not self.box_client:
             self.logger.error("Box client not available for upload")
             return False
         
-        for attempt in range(self.config.max_retries):
+        try:
+            folder = self.box_client.folder(self.config.target_folder_id)
+            file_name = file_path.name
+            
+            self.logger.info(f"Starting Box upload: {file_name} ({file_path.stat().st_size} bytes)")
+            
+            # Check if file already exists
             try:
-                folder = self.box_client.folder(self.config.target_folder_id)
-                file_name = file_path.name
-                
-                # Check if file already exists
                 items = folder.get_items()
                 for item in items:
                     if item.name == file_name:
-                        self.logger.info(f"File {file_name} already exists in Box, skipping upload")
-                        return True
-                
-                uploaded_file = folder.upload(str(file_path), file_name=file_name)
-                self.logger.info(f"Successfully uploaded {file_path} as file ID {uploaded_file.id}")
-                return True
-                
-            except BoxAPIException as e:
-                self.logger.warning(f"Box upload attempt {attempt + 1} failed: {e}")
-                if attempt < self.config.max_retries - 1:
-                    time.sleep(self.config.retry_delay)
+                        self.logger.info(f"File {file_name} already exists in Box (ID: {item.id})")
+                        return True  # Consider this successful
             except Exception as e:
-                self.logger.error(f"Unexpected error during Box upload: {e}")
-                break
-        
-        self.logger.error(f"Failed to upload {file_path} after all retries")
-        return False
+                self.logger.warning(f"Could not check existing files: {e}")
+            
+            # Upload the file
+            with open(file_path, 'rb') as file_stream:
+                uploaded_file = folder.upload_stream(file_stream, file_name)
+            
+            self.logger.info(f"Successfully uploaded {file_name} as Box file ID: {uploaded_file.id}")
+            return True
+            
+        except BoxAPIException as e:
+            self.logger.error(f"Box API error uploading {file_path.name}: {e}")
+            if "invalid_grant" in str(e).lower():
+                self.logger.error("Box JWT credentials may be expired or invalid")
+            elif "not_found" in str(e).lower():
+                self.logger.error("Box folder not found - check TARGET_FOLDER_ID")
+            elif "insufficient_scope" in str(e).lower():
+                self.logger.error("Box app lacks required permissions")
+            return False
+            
+        except Exception as e:
+            self.logger.error(f"Unexpected error uploading {file_path.name}: {e}")
+            return False
     
     def _add_folder_collaborator(self):
         """Add collaborator to target folder"""
@@ -314,37 +432,46 @@ class BarcodeScanner:
             self.logger.error(f"Exception adding collaborator: {e}")
     
     def _rotate_excel(self):
-        """Rotate Excel file daily"""
+        """Improved rotation with reliable upload queueing"""
+        self.logger.info("Starting daily file rotation...")
+        
+        # Determine yesterday's file path
         yesterday_str = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
         yesterday_file = self.config.base_dir / f"scanned_barcodes_{yesterday_str}.xlsx"
         
+        # Handle existing current file
+        current_file_handled = False
         if self.excel_path.exists():
             try:
-                # Only rename if it's actually today's file
-                today_str = datetime.now().strftime("%Y-%m-%d")
-                expected_today_file = self.config.base_dir / f"scanned_barcodes_{today_str}.xlsx"
-                
-                if self.excel_path == expected_today_file:
-                    # Check if current file has scan data
-                    if self._has_scan_data(self.excel_path):
-                        os.rename(self.excel_path, yesterday_file)
-                        self.logger.info(f"Rotated file: {self.excel_path} -> {yesterday_file}")
-                        
-                        # Upload in background thread to avoid blocking
-                        threading.Thread(
-                            target=self._upload_to_box, 
-                            args=(yesterday_file,),
-                            daemon=True
-                        ).start()
+                # Check if current file has scan data
+                if self._has_scan_data(self.excel_path):
+                    # Rename current file to yesterday's name if it doesn't exist
+                    if not yesterday_file.exists():
+                        self.excel_path.rename(yesterday_file)
+                        self.logger.info(f"Renamed current file to: {yesterday_file}")
+                        current_file_handled = True
                     else:
-                        self.logger.info(f"Current file has no scan data, deleting instead of rotating")
-                        os.remove(self.excel_path)
+                        self.logger.warning(f"Yesterday file already exists: {yesterday_file}")
+                else:
+                    # Current file is empty, just delete it
+                    self.excel_path.unlink()
+                    self.logger.info(f"Deleted empty current file: {self.excel_path}")
+                    current_file_handled = True
                     
             except Exception as e:
-                self.logger.error(f"File rotation failed: {e}")
+                self.logger.error(f"Error handling current file during rotation: {e}")
+        
+        # Queue yesterday's file for upload if it exists
+        if yesterday_file.exists():
+            self.logger.info(f"Queueing yesterday's file for upload: {yesterday_file}")
+            self._queue_file_for_upload(yesterday_file)
         
         # Initialize new file for today
-        self._initialize_excel()
+        try:
+            self._initialize_excel()
+            self.logger.info("File rotation completed successfully")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize new Excel file: {e}")
     
     def _check_barcode_timeout(self):
         """Check for barcode input timeout"""
@@ -389,15 +516,27 @@ class BarcodeScanner:
                     self.last_input_time = None
     
     def stop(self):
-        """Stop the scanner"""
+        """Enhanced stop method that ensures uploads complete"""
+        self.logger.info("Stopping barcode scanner...")
         self._running = False
         keyboard.unhook_all()
-        self.logger.info("Barcode scanner stopped")
         
-        # Handle any pending file uploads on shutdown
-        if self.excel_path.exists() and self._has_scan_data(self.excel_path):
+        # Wait for any pending uploads to complete
+        self._wait_for_uploads_complete(timeout=60)
+        
+        # Stop upload worker
+        self.upload_worker_running = False
+        try:
+            self.upload_queue.put(None, timeout=1.0)  # Signal worker to stop
+        except:
+            pass
+        
+        # Handle any remaining file uploads on shutdown
+        if hasattr(self, 'excel_path') and self.excel_path.exists() and self._has_scan_data(self.excel_path):
             self.logger.info("Uploading current file before shutdown...")
-            self._upload_to_box(self.excel_path)
+            self._upload_with_retries(self.excel_path)
+        
+        self.logger.info("Barcode scanner stopped")
     
     def run(self):
         """Main execution loop"""
