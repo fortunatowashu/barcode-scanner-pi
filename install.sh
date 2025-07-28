@@ -302,8 +302,43 @@ if [ -f "scripts/barcode-scanner.service" ]; then
     sudo systemctl enable barcode-scanner
     log "Systemd service installed and enabled"
 else
-    error "Service file not found at scripts/barcode-scanner.service"
-    exit 1
+    # Create service file if not found in repo
+    warn "Service file not found in repo, creating from template..."
+    sudo tee /etc/systemd/system/barcode-scanner.service << 'EOF'
+[Unit]
+Description=Barcode Scanner Service
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/home/pi/barcode-scanner
+Environment="PATH=/home/pi/barcode-scanner/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/pi/barcode-scanner/venv/bin/python /home/pi/barcode-scanner/barcode_scanner.py
+
+# Restart configuration
+Restart=always
+RestartSec=10
+StartLimitInterval=60
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+
+# Security options
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    
+    sudo systemctl daemon-reload
+    sudo systemctl enable barcode-scanner
+    log "Systemd service created and enabled"
 fi
 
 # Set CLI mode as default
