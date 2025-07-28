@@ -8,7 +8,7 @@ Type=simple
 User=root
 Group=root
 WorkingDirectory=/home/pi/barcode-scanner
-Environment="PATH=/home/pi/barcode-scanner/venv/bin"
+Environment="PATH=/home/pi/barcode-scanner/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 ExecStart=/home/pi/barcode-scanner/venv/bin/python /home/pi/barcode-scanner/barcode_scanner.py
 
 # Restart configuration
