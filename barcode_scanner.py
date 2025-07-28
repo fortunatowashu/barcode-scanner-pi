@@ -176,7 +176,7 @@ class BarcodeScanner:
     
     def _setup_scheduler(self):
         """Set up daily rotation schedule"""
-        schedule.every().day.at("15:18").do(self._rotate_excel)
+        schedule.every().day.at("00:01").do(self._rotate_excel)
         self.logger.info("Scheduled daily file rotation at 00:01")
     
     def _start_upload_worker(self):
